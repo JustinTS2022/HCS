@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Game Log — Hebron Championship Series</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<nav data-nav></nav>
+<main>
+  <h1>Game Log</h1>
+  <div class="subtitle">Every player, every game. Filter by player or by game number.</div>
+  <div class="filters" id="player-filters"></div>
+  <div class="filters" id="game-filters"></div>
+  <div class="panel">
+    <div class="table-scroll" id="log-table">
+      <div class="loading">Loading live game log…</div>
+    </div>
+  </div>
+</main>
+<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<script src="assets/app.js"></script>
+<script>
+  buildNav("game-log.html");
+
+  let allRows = [];
+  let activePlayer = "All";
+  let activeGame = "All";
+
+  function render() {
+    const container = document.getElementById("log-table");
+    let rows = allRows;
+    if (activePlayer !== "All") rows = rows.filter((r) => r[2] === activePlayer);
+    if (activeGame !== "All") rows = rows.filter((r) => r[0] === activeGame);
+
+    const headers = ["Game", "Date", "Player", "Side", "Role", "Champion", "Result", "K", "D", "A", "KDA", "Kill Part %", "Multikill", "First Blood"];
+    const displayRows = rows.map((r) => [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[19], r[20], r[21], r[22]]);
+    renderTable(container, headers, displayRows, {
+      cellClass: (cell, i) => {
+        if (i === 6 && cell === "Win") return "win";
+        if (i === 6 && cell === "Loss") return "loss";
+        return "";
+      },
+    });
+  }
+
+  function buildFilterBar(elemId, values, current, onPick) {
+    const bar = document.getElementById(elemId);
+    bar.innerHTML = "";
+    ["All", ...values].forEach((v) => {
+      const btn = el("button", { text: v, class: v === current ? "active" : "" });
+      btn.addEventListener("click", () => {
+        bar.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        onPick(v);
+      });
+      bar.appendChild(btn);
+    });
+  }
+
+  (async function () {
+    const container = document.getElementById("log-table");
+    try {
+      allRows = await fetchSheet("Game Log");
+      allRows.shift(); // drop mangled header row
+
+      const players = [...new Set(allRows.map((r) => r[2]))].sort();
+      const games = [...new Set(allRows.map((r) => r[0]))].sort((a, b) => Number(a) - Number(b));
+
+      buildFilterBar("player-filters", players, "All", (v) => { activePlayer = v; render(); });
+      buildFilterBar("game-filters", games, "All", (v) => { activeGame = v; render(); });
+
+      render();
+    } catch (err) {
+      showError(container, err);
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Draft Board — Hebron Championship Series</title>
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<nav data-nav></nav>
+<main>
+  <h1>2026 Redraft — Draft Board</h1>
+  <div class="subtitle" id="draft-subtitle">Loading…</div>
+  <div class="panel">
+    <div class="table-scroll" id="draft-table">
+      <div class="loading">Loading live draft board…</div>
+    </div>
+  </div>
+</main>
+<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<script src="assets/app.js"></script>
+<script>
+  buildNav("draft-board.html");
+
+  (async function () {
+    const container = document.getElementById("draft-table");
+    const subtitle = document.getElementById("draft-subtitle");
+    try {
+      const rows = await fetchSheet("Draft Board");
+
+      // Row 0's single cell has the title + the structure note + the
+      // "Rank" header all glued together (merged title cells do this in
+      // the CSV export). Pull the structure note out for the subtitle,
+      // then treat row 0 as the real header row and everything after as data.
+      const rawTitle = rows[0][0];
+      const structureMatch = rawTitle.match(/Structure:[\s\S]*?picks\)\./);
+      subtitle.textContent = structureMatch ? structureMatch[0].replace(/"$/, "") : "Draft board, live from the Sheet.";
+
+      const dataRows = rows.slice(1);
+      const headers = ["Rank", "Player", "Status", "Overall Value", "Total Games", "Best Role", "Best Role Value", "Confidence / Notes"];
+      renderTable(container, headers, dataRows, {
+        cellClass: (cell, i, r) => {
+          if (i === 2 && cell.startsWith("TAKEN")) return "loss";
+          if (i === 2 && cell.startsWith("CAPTAIN")) return "win";
+          return "";
+        },
+      });
+    } catch (err) {
+      showError(container, err);
+    }
+  })();
+</script>
+</body>
+</html>
