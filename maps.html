@@ -1,9 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Standings — Hebron Championship Series</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maps — Hebron Championship Series</title>
 <style>
 :root {
   --bg: #f6f7f9;
@@ -415,15 +415,12 @@ footer {
 <body>
 <nav data-nav></nav>
 <main>
-  <h1>Standings</h1>
-  <div class="subtitle">Overall Player Value, blended across roles and weighted by games played. Updates automatically whenever the Sheet does.</div>
-  <div class="panel">
-    <div class="table-scroll" id="standings-table">
-      <div class="loading">Loading live standings…</div>
-    </div>
-  </div>
+  <h1>Kill and position maps</h1>
+  <div class="subtitle">Kill locations come from exact map coordinates recorded in the match timeline — no estimation. Position dots are each player's location sampled once per minute.</div>
+  <div id="picker"></div>
+  <div id="body"><div class="loading">Loading match data…</div></div>
 </main>
-<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<footer>Blue base sits bottom-left, red base top-right. Ward locations are not available — Riot omits coordinates from ward events.</footer>
 <script>
 // Hebron Championship Series - shared site logic
 // Reads live data straight from the Google Sheet via the gviz CSV endpoint.
@@ -704,35 +701,113 @@ function plotPoint(svg, gx, gy, cls, r) {
 
 </script>
 <script>
-  buildNav("index.html");
+buildNav("maps.html");
 
-  (async function () {
-    const container = document.getElementById("standings-table");
-    try {
-      const rows = await fetchSheet("Standings");
-      // Row 0 is the (mangled) header. Data rows follow until the first
-      // row whose "Total Games" column isn't a plain integer -- that's
-      // where the sheet's second section ("TOP PLAYER-ROLE PERFORMANCES")
-      // begins, which isn't shaped for this table.
-      const dataRows = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!/^\d+$/.test((r[1] || "").trim())) break;
-        dataRows.push(r);
+(async function () {
+  const body = document.getElementById("body");
+  const picker = document.getElementById("picker");
+  try {
+    const data = await loadData();
+    const players = ["Everyone"].concat(data.players.slice().sort());
+    let current = "Everyone";
+    let phase = "Whole game";
+    const PHASES = { "Whole game": [0, 999], "Early (0–10)": [0, 10], "Mid (10–20)": [10, 20], "Late (20+)": [20, 999] };
+
+    function draw() {
+      picker.innerHTML = "";
+      filterBar(picker, players, current, p => { current = p; draw(); });
+      filterBar(picker, Object.keys(PHASES), phase, p => { phase = p; draw(); });
+      body.innerHTML = "";
+      const [lo, hi] = PHASES[phase];
+
+      // ---- kill map ---------------------------------------------------
+      let kills = [];
+      for (const g of data.games) {
+        for (const kEvt of g.kills) {
+          const min = kEvt.t / 60;
+          if (min < lo || min >= hi) continue;
+          if (current !== "Everyone" && kEvt.k !== current && kEvt.v !== current) continue;
+          kills.push(kEvt);
+        }
       }
+      const kPanel = el("div", { class: "panel" });
+      const kHead = el("div", { class: "panel-head" });
+      kHead.appendChild(el("div", { class: "panel-title",
+        text: current === "Everyone" ? "Where kills happen" : "Kills involving " + current }));
+      kHead.appendChild(el("div", { class: "panel-note",
+        text: kills.length + " kill" + (kills.length === 1 ? "" : "s") +
+              (current === "Everyone" ? " across all six games." :
+               " — as killer or victim. Blue and red show which side got the kill.") }));
+      kPanel.appendChild(kHead);
+      const kWrap = el("div", { class: "map-wrap" });
+      const kMap = riftMap(440);
+      for (const kEvt of kills) plotPoint(kMap, kEvt.x, kEvt.y, kEvt.kt === 100 ? "k-blue" : "k-red", 1.6);
+      kWrap.appendChild(kMap);
+      kPanel.appendChild(kWrap);
+      kPanel.appendChild(legend([
+        { color: "#2f6df6", label: "Blue side kill" },
+        { color: "#d9483c", label: "Red side kill" },
+      ]));
+      body.appendChild(kPanel);
 
-      const headers = ["Rank", "Player", "Games", "Win %", "Overall Value", "Weighted Value", "Best Role", "Best Role Value"];
-      const displayRows = dataRows.map((r, i) => [
-        String(i + 1), r[0], r[1], r[2], r[3], r[4], r[5], r[6],
-      ]);
+      // ---- position map -----------------------------------------------
+      const pPanel = el("div", { class: "panel" });
+      const pHead = el("div", { class: "panel-head" });
+      pHead.appendChild(el("div", { class: "panel-title",
+        text: current === "Everyone" ? "Where everyone spends time" : "Where " + current + " spends time" }));
+      pHead.appendChild(el("div", { class: "panel-note",
+        text: "One dot per player per minute. Dense clusters are where that player actually operates — for junglers this is effectively their pathing." }));
+      pPanel.appendChild(pHead);
+      const pWrap = el("div", { class: "map-wrap" });
+      const pMap = riftMap(440);
+      let n = 0;
+      for (const g of data.games) {
+        for (const pl of g.players) {
+          if (current !== "Everyone" && pl.p !== current) continue;
+          pl.pos.forEach((xy, m) => {
+            if (m < lo || m >= hi) return;
+            if (!xy[0] && !xy[1]) return;
+            plotPoint(pMap, xy[0], xy[1], "p-dot", 1.3);
+            n++;
+          });
+        }
+      }
+      pWrap.appendChild(pMap);
+      pPanel.appendChild(pWrap);
+      pPanel.appendChild(legend([{ color: "#6b7686", label: n.toLocaleString() + " position samples" }]));
+      body.appendChild(pPanel);
 
-      renderTable(container, headers, displayRows, {
-        cellClass: (cell, i) => (i === 0 ? "rank-cell" : ""),
-      });
-    } catch (err) {
-      showError(container, err);
+      // ---- kill leaderboard for the current filter ---------------------
+      if (current === "Everyone") {
+        const tally = {};
+        for (const g of data.games) {
+          for (const kEvt of g.kills) {
+            const min = kEvt.t / 60;
+            if (min < lo || min >= hi) continue;
+            if (kEvt.k) (tally[kEvt.k] || (tally[kEvt.k] = { k: 0, d: 0, a: 0 })).k++;
+            if (kEvt.v) (tally[kEvt.v] || (tally[kEvt.v] = { k: 0, d: 0, a: 0 })).d++;
+            for (const as of kEvt.a) (tally[as] || (tally[as] = { k: 0, d: 0, a: 0 })).a++;
+          }
+        }
+        const tPanel = el("div", { class: "panel" });
+        const tHead = el("div", { class: "panel-head" });
+        tHead.appendChild(el("div", { class: "panel-title", text: "Kill involvement — " + phase.toLowerCase() }));
+        tHead.appendChild(el("div", { class: "panel-note", text: "Counted from individual kill events, so it reflects this time window only." }));
+        tPanel.appendChild(tHead);
+        const tWrap = el("div", { class: "table-scroll" });
+        renderTable(tWrap, ["Player", "Kills", "Deaths", "Assists", "K+A"],
+          Object.entries(tally).sort((x, y) => (y[1].k + y[1].a) - (x[1].k + x[1].a))
+            .map(([p, t]) => [p, String(t.k), String(t.d), String(t.a), String(t.k + t.a)]));
+        tPanel.appendChild(tWrap);
+        body.appendChild(tPanel);
+      }
     }
-  })();
+
+    draw();
+  } catch (err) {
+    showError(body, err);
+  }
+})();
 </script>
 </body>
 </html>

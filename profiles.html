@@ -1,9 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Standings — Hebron Championship Series</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profiles — Hebron Championship Series</title>
 <style>
 :root {
   --bg: #f6f7f9;
@@ -415,15 +415,12 @@ footer {
 <body>
 <nav data-nav></nav>
 <main>
-  <h1>Standings</h1>
-  <div class="subtitle">Overall Player Value, blended across roles and weighted by games played. Updates automatically whenever the Sheet does.</div>
-  <div class="panel">
-    <div class="table-scroll" id="standings-table">
-      <div class="loading">Loading live standings…</div>
-    </div>
-  </div>
+  <h1>Player profiles</h1>
+  <div class="subtitle">Per-player scouting view built from the raw match exports — champion history, lane-phase performance against the direct opponent, and head-to-head record.</div>
+  <div id="picker"></div>
+  <div id="body"><div class="loading">Loading match data…</div></div>
 </main>
-<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<footer>Computed from Riot match exports. Lane deltas are measured against the opposing player in the same role.</footer>
 <script>
 // Hebron Championship Series - shared site logic
 // Reads live data straight from the Google Sheet via the gviz CSV endpoint.
@@ -704,35 +701,116 @@ function plotPoint(svg, gx, gy, cls, r) {
 
 </script>
 <script>
-  buildNav("index.html");
+buildNav("profiles.html");
 
-  (async function () {
-    const container = document.getElementById("standings-table");
-    try {
-      const rows = await fetchSheet("Standings");
-      // Row 0 is the (mangled) header. Data rows follow until the first
-      // row whose "Total Games" column isn't a plain integer -- that's
-      // where the sheet's second section ("TOP PLAYER-ROLE PERFORMANCES")
-      // begins, which isn't shaped for this table.
-      const dataRows = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!/^\d+$/.test((r[1] || "").trim())) break;
-        dataRows.push(r);
+const COLORS = ["#2f6df6", "#d9483c", "#067a51", "#b8791a", "#7f77dd", "#0f8fa8"];
+
+(async function () {
+  const body = document.getElementById("body");
+  const picker = document.getElementById("picker");
+  try {
+    const data = await loadData();
+    const rows = flattenGames(data);
+    const players = data.players.slice().sort();
+    let current = players.includes("Justin") ? "Justin" : players[0];
+
+    function draw() {
+      picker.innerHTML = "";
+      filterBar(picker, players, current, p => { current = p; draw(); });
+      body.innerHTML = "";
+      const mine = rows.filter(r => r.p === current).sort((a, b) => a.game - b.game);
+      if (!mine.length) { body.appendChild(el("div", { class: "loading", text: "No games." })); return; }
+
+      const wins = mine.filter(r => r.win).length;
+      const k = mine.reduce((s, r) => s + r.k, 0);
+      const d = mine.reduce((s, r) => s + r.d, 0);
+      const a = mine.reduce((s, r) => s + r.a, 0);
+      const fant = mine.reduce((s, r) => s + r.fantasy, 0) / mine.length;
+      const laneWins = mine.filter(r => (r.gd[15] || 0) > 0).length;
+      const roleCount = {};
+      mine.forEach(r => roleCount[r.role] = (roleCount[r.role] || 0) + 1);
+      const mainRole = Object.entries(roleCount).sort((x, y) => y[1] - x[1])[0][0];
+
+      const stats = el("div", { class: "stat-grid" });
+      function stat(label, value, sub) {
+        const s = el("div", { class: "stat" });
+        s.appendChild(el("div", { class: "label", text: label }));
+        s.appendChild(el("div", { class: "value", text: value }));
+        if (sub) s.appendChild(el("div", { class: "sub", text: sub }));
+        stats.appendChild(s);
       }
+      stat("Games", String(mine.length), mainRole + " most often");
+      stat("Record", wins + "–" + (mine.length - wins), Math.round(100 * wins / mine.length) + "% win rate");
+      stat("KDA", fmt((k + a) / Math.max(d, 1), 2), k + "/" + d + "/" + a + " total");
+      stat("Fantasy", fmt(fant, 1), "avg per game");
+      stat("Lane wins", laneWins + "/" + mine.length, "ahead at 15 min");
+      body.appendChild(stats);
 
-      const headers = ["Rank", "Player", "Games", "Win %", "Overall Value", "Weighted Value", "Best Role", "Best Role Value"];
-      const displayRows = dataRows.map((r, i) => [
-        String(i + 1), r[0], r[1], r[2], r[3], r[4], r[5], r[6],
-      ]);
+      // ---- gold differential chart -----------------------------------
+      const chartPanel = el("div", { class: "panel" });
+      const head = el("div", { class: "panel-head" });
+      head.appendChild(el("div", { class: "panel-title", text: "Gold differential vs. lane opponent" }));
+      head.appendChild(el("div", { class: "panel-note",
+        text: "Above the dashed line means ahead of the player in the same role on the other team. Minutes along the bottom." }));
+      chartPanel.appendChild(head);
+      const series = mine.map((r, i) => ({
+        values: r.gd, color: COLORS[i % COLORS.length], width: 2,
+      }));
+      chartPanel.appendChild(lineChart({ series, height: 260 }));
+      chartPanel.appendChild(legend(mine.map((r, i) => ({
+        color: COLORS[i % COLORS.length],
+        label: "G" + r.game + " " + r.champ + " vs " + (r.opp || "—"),
+      }))));
+      body.appendChild(chartPanel);
 
-      renderTable(container, headers, displayRows, {
-        cellClass: (cell, i) => (i === 0 ? "rank-cell" : ""),
-      });
-    } catch (err) {
-      showError(container, err);
+      // ---- game-by-game table ----------------------------------------
+      const tPanel = el("div", { class: "panel" });
+      const tHead = el("div", { class: "panel-head" });
+      tHead.appendChild(el("div", { class: "panel-title", text: "Game by game" }));
+      tHead.appendChild(el("div", { class: "panel-note", text: "" }));
+      tPanel.appendChild(tHead);
+      const tWrap = el("div", { class: "table-scroll" });
+      renderTable(tWrap,
+        ["Game", "Role", "Champion", "Result", "K/D/A", "CS", "KP%", "Dmg share", "Gold @15", "CS @15", "Fantasy", "Opponent"],
+        mine.map(r => [
+          "G" + r.game, r.role, r.champ, r.win ? "Win" : "Loss",
+          r.k + "/" + r.d + "/" + r.a, String(r.cs), fmt(r.kp, 1) + "%",
+          fmt(r.dshare, 1) + "%", signed(r.gd[15] || 0), signed(r.cd[15] || 0),
+          fmt(r.fantasy, 1), (r.opp || "—") + (r.oppChamp ? " (" + r.oppChamp + ")" : ""),
+        ]),
+        { cellClass: (cell, i) => (i === 3 ? (cell === "Win" ? "win" : "loss") : "") });
+      tPanel.appendChild(tWrap);
+      body.appendChild(tPanel);
+
+      // ---- head to head ----------------------------------------------
+      const h2h = {};
+      for (const r of mine) {
+        if (!r.opp) continue;
+        const e = h2h[r.opp] || (h2h[r.opp] = { n: 0, laneWon: 0, gameWon: 0, gd: 0 });
+        e.n++; e.gd += (r.gd[15] || 0);
+        if ((r.gd[15] || 0) > 0) e.laneWon++;
+        if (r.win) e.gameWon++;
+      }
+      const hPanel = el("div", { class: "panel" });
+      const hHead = el("div", { class: "panel-head" });
+      hHead.appendChild(el("div", { class: "panel-title", text: "Head to head" }));
+      hHead.appendChild(el("div", { class: "panel-note",
+        text: "Direct lane matchups only. Lane result and game result often disagree — that gap is usually the interesting part." }));
+      hPanel.appendChild(hHead);
+      const hWrap = el("div", { class: "table-scroll" });
+      renderTable(hWrap, ["Opponent", "Games", "Lanes won", "Games won", "Avg gold @15"],
+        Object.entries(h2h).sort((x, y) => y[1].n - x[1].n).map(([opp, e]) => [
+          opp, String(e.n), e.laneWon + "/" + e.n, e.gameWon + "/" + e.n, signed(e.gd / e.n),
+        ]));
+      hPanel.appendChild(hWrap);
+      body.appendChild(hPanel);
     }
-  })();
+
+    draw();
+  } catch (err) {
+    showError(body, err);
+  }
+})();
 </script>
 </body>
 </html>

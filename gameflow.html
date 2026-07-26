@@ -1,9 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Standings — Hebron Championship Series</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Flow — Hebron Championship Series</title>
 <style>
 :root {
   --bg: #f6f7f9;
@@ -415,15 +415,12 @@ footer {
 <body>
 <nav data-nav></nav>
 <main>
-  <h1>Standings</h1>
-  <div class="subtitle">Overall Player Value, blended across roles and weighted by games played. Updates automatically whenever the Sheet does.</div>
-  <div class="panel">
-    <div class="table-scroll" id="standings-table">
-      <div class="loading">Loading live standings…</div>
-    </div>
-  </div>
+  <h1>Game flow</h1>
+  <div class="subtitle">How each game was actually won or lost — the gold curve over time, the objectives that moved it, and the full draft including bans.</div>
+  <div id="picker"></div>
+  <div id="body"><div class="loading">Loading match data…</div></div>
 </main>
-<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<footer>Gold differential is blue side minus red side, summed across all five players.</footer>
 <script>
 // Hebron Championship Series - shared site logic
 // Reads live data straight from the Google Sheet via the gviz CSV endpoint.
@@ -704,35 +701,114 @@ function plotPoint(svg, gx, gy, cls, r) {
 
 </script>
 <script>
-  buildNav("index.html");
+buildNav("gameflow.html");
 
-  (async function () {
-    const container = document.getElementById("standings-table");
-    try {
-      const rows = await fetchSheet("Standings");
-      // Row 0 is the (mangled) header. Data rows follow until the first
-      // row whose "Total Games" column isn't a plain integer -- that's
-      // where the sheet's second section ("TOP PLAYER-ROLE PERFORMANCES")
-      // begins, which isn't shaped for this table.
-      const dataRows = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!/^\d+$/.test((r[1] || "").trim())) break;
-        dataRows.push(r);
+(async function () {
+  const body = document.getElementById("body");
+  const picker = document.getElementById("picker");
+  try {
+    const data = await loadData();
+    const labels = data.games.map(g => "Game " + g.n);
+    let current = labels[0];
+
+    function draw() {
+      picker.innerHTML = "";
+      filterBar(picker, labels, current, v => { current = v; draw(); });
+      body.innerHTML = "";
+      const g = data.games[labels.indexOf(current)];
+      const blue = g.teams["100"], red = g.teams["200"];
+
+      // ---- summary ----------------------------------------------------
+      const stats = el("div", { class: "stat-grid" });
+      function stat(label, value, sub) {
+        const s = el("div", { class: "stat" });
+        s.appendChild(el("div", { class: "label", text: label }));
+        s.appendChild(el("div", { class: "value", text: value }));
+        if (sub) s.appendChild(el("div", { class: "sub", text: sub }));
+        stats.appendChild(s);
       }
+      stat("Winner", blue.win ? "Blue" : "Red", g.date);
+      stat("Length", fmt(g.dur, 1) + " min", g.dur < 27 ? "stomp territory" : "went long");
+      stat("Kills", blue.kills + " – " + red.kills, "blue – red");
+      stat("Gold", (blue.gold / 1000).toFixed(1) + "k – " + (red.gold / 1000).toFixed(1) + "k", "blue – red");
+      stat("Dragons", blue.dragons + " – " + red.dragons, "barons " + blue.barons + " – " + red.barons);
+      body.appendChild(stats);
 
-      const headers = ["Rank", "Player", "Games", "Win %", "Overall Value", "Weighted Value", "Best Role", "Best Role Value"];
-      const displayRows = dataRows.map((r, i) => [
-        String(i + 1), r[0], r[1], r[2], r[3], r[4], r[5], r[6],
-      ]);
+      // ---- gold curve -------------------------------------------------
+      const n = g.players[0].g.length;
+      const teamGold = t => {
+        const out = new Array(n).fill(0);
+        for (const p of g.players) if (p.team === t) for (let i = 0; i < n; i++) out[i] += p.g[i] || 0;
+        return out;
+      };
+      const bg = teamGold(100), rg = teamGold(200);
+      const diff = bg.map((v, i) => v - rg[i]);
 
-      renderTable(container, headers, displayRows, {
-        cellClass: (cell, i) => (i === 0 ? "rank-cell" : ""),
-      });
-    } catch (err) {
-      showError(container, err);
+      const cPanel = el("div", { class: "panel" });
+      const cHead = el("div", { class: "panel-head" });
+      cHead.appendChild(el("div", { class: "panel-title", text: "Team gold differential" }));
+      cHead.appendChild(el("div", { class: "panel-note",
+        text: "Above the dashed line means blue side is ahead. Where the line crosses is where the game turned." }));
+      cPanel.appendChild(cHead);
+      cPanel.appendChild(lineChart({ series: [{ values: diff, color: "#2f6df6", width: 2.4 }], height: 240 }));
+      cPanel.appendChild(legend([{ color: "#2f6df6", label: "Blue gold lead (negative = red ahead)" }]));
+      body.appendChild(cPanel);
+
+      // ---- draft ------------------------------------------------------
+      const dPanel = el("div", { class: "panel" });
+      const dHead = el("div", { class: "panel-head" });
+      dHead.appendChild(el("div", { class: "panel-title", text: "Draft" }));
+      dHead.appendChild(el("div", { class: "panel-note", text: "Bans in the order they were taken, then the composition each side ended up with." }));
+      dPanel.appendChild(dHead);
+      for (const [tid, team, name] of [["100", blue, "Blue"], ["200", red, "Red"]]) {
+        const row = el("div", { class: "ban-row" });
+        row.appendChild(el("div", { class: "ban-label", text: name + " bans" }));
+        const inner = el("div");
+        for (const b of team.bans) inner.appendChild(el("span", { class: "pill pill-ban", text: b }));
+        if (!team.bans.length) inner.appendChild(el("span", { class: "panel-note", text: "none recorded" }));
+        row.appendChild(inner);
+        dPanel.appendChild(row);
+      }
+      const dWrap = el("div", { class: "table-scroll" });
+      const order = { Top: 0, Jungle: 1, Mid: 2, ADC: 3, Support: 4 };
+      renderTable(dWrap, ["Side", "Role", "Player", "Champion", "K/D/A", "CS", "Dmg", "Dmg share", "Gold @15"],
+        g.players.slice().sort((a, b) => (a.team - b.team) || (order[a.role] - order[b.role])).map(p => [
+          p.team === 100 ? "Blue" : "Red", p.role, p.p, p.champ,
+          p.k + "/" + p.d + "/" + p.a, String(p.cs), p.dmg.toLocaleString(),
+          fmt(p.dshare, 1) + "%", signed(p.gd[15] || 0),
+        ]),
+        { cellClass: (c, i) => (i === 0 ? (c === "Blue" ? "win" : "loss") : "") });
+      dPanel.appendChild(dWrap);
+      body.appendChild(dPanel);
+
+      // ---- objective timeline ------------------------------------------
+      const oPanel = el("div", { class: "panel" });
+      const oHead = el("div", { class: "panel-head" });
+      oHead.appendChild(el("div", { class: "panel-title", text: "Objective timeline" }));
+      oHead.appendChild(el("div", { class: "panel-note", text: "Dragons, barons, heralds and towers, in order." }));
+      oPanel.appendChild(oHead);
+      const tl = el("div", { class: "timeline" });
+      const objs = g.objs.slice().sort((a, b) => a.t - b.t);
+      for (const o of objs) {
+        const row = el("div", { class: "tl-row" });
+        const mm = Math.floor(o.t / 60), ss = String(o.t % 60).padStart(2, "0");
+        row.appendChild(el("span", { class: "tl-time", text: mm + ":" + ss }));
+        row.appendChild(el("span", { class: "tl-bar " + (o.team === 100 ? "tl-blue" : "tl-red") }));
+        const label = (o.team === 100 ? "Blue" : "Red") + " took " +
+          (o.sub ? o.sub.toLowerCase().replace(/_/g, " ") + " " : "") + o.type.toLowerCase();
+        row.appendChild(el("span", { text: label }));
+        tl.appendChild(row);
+      }
+      if (!objs.length) tl.appendChild(el("div", { class: "panel-note", text: "No objective events recorded." }));
+      oPanel.appendChild(tl);
+      body.appendChild(oPanel);
     }
-  })();
+
+    draw();
+  } catch (err) {
+    showError(body, err);
+  }
+})();
 </script>
 </body>
 </html>

@@ -6,16 +6,22 @@
 <title>Game Log — Hebron Championship Series</title>
 <style>
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --panel-border: #262b36;
-  --text: #e7e9ee;
-  --text-dim: #9aa1af;
-  --accent: #4fa8ff;
-  --gold: #e8b84a;
-  --green: #3ecf8e;
-  --red: #ef6b6b;
-  --row-alt: #1b1f28;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-border: #e5e8ed;
+  --panel-border-soft: #eef0f4;
+  --text: #12161f;
+  --text-mid: #4a5262;
+  --text-dim: #79808f;
+  --accent: #2f6df6;
+  --accent-soft: #eaf1fe;
+  --gold: #b8791a;
+  --green: #067a51;
+  --red: #c8362b;
+  --red-soft: #fdeceb;
+  --row-hover: #f8fafd;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 1px 3px rgba(16, 24, 40, 0.06), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -25,8 +31,12 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+/* ---------------------------------------------------------------- nav */
 
 nav {
   display: flex;
@@ -34,171 +44,371 @@ nav {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 16px 24px;
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--panel-border);
-  background: var(--panel);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
 }
 
 nav .brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.02em;
+  font-weight: 650;
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 nav .nav-links {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: wrap;
 }
 
 nav .nav-links a {
-  color: var(--text-dim);
+  color: var(--text-mid);
   text-decoration: none;
-  padding: 8px 14px;
+  padding: 7px 14px;
   border-radius: 8px;
-  font-size: 0.92rem;
-  transition: background 0.15s, color 0.15s;
+  font-size: 0.89rem;
+  font-weight: 500;
+  transition: background 0.14s ease, color 0.14s ease;
 }
 
 nav .nav-links a:hover {
-  background: #1f2430;
+  background: #f0f2f6;
   color: var(--text);
 }
 
 nav .nav-links a.active {
-  background: var(--accent);
-  color: #06121f;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 600;
 }
 
+/* --------------------------------------------------------------- page */
+
 main {
-  max-width: 1100px;
+  max-width: 1140px;
   margin: 0 auto;
-  padding: 24px 20px 64px;
+  padding: 36px 24px 80px;
 }
 
 h1 {
-  font-size: 1.6rem;
-  margin: 8px 0 4px;
+  font-size: 1.75rem;
+  font-weight: 680;
+  letter-spacing: -0.022em;
+  margin: 0 0 6px;
 }
 
 .subtitle {
   color: var(--text-dim);
-  font-size: 0.95rem;
-  margin-bottom: 20px;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  max-width: 68ch;
+  margin-bottom: 26px;
 }
+
+/* -------------------------------------------------------------- panel */
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
+  box-shadow: var(--shadow-md);
 }
 
-.table-scroll {
-  overflow-x: auto;
-}
+.table-scroll { overflow-x: auto; }
+
+/* -------------------------------------------------------------- table */
 
 table.data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.885rem;
   white-space: nowrap;
 }
 
 table.data-table th {
   text-align: left;
-  padding: 10px 14px;
-  background: #1c2029;
+  padding: 11px 16px;
+  background: #fbfcfd;
   color: var(--text-dim);
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.715rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.055em;
   border-bottom: 1px solid var(--panel-border);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
 
 table.data-table td {
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--panel-border);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--panel-border-soft);
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
 }
 
-table.data-table tbody tr:nth-child(even) {
-  background: var(--row-alt);
+/* first two columns read as row labels */
+table.data-table td:first-child,
+table.data-table td:nth-child(2) {
+  color: var(--text);
+  font-weight: 550;
 }
 
-table.data-table tbody tr:hover {
-  background: #232838;
-}
+table.data-table tbody tr:last-child td { border-bottom: none; }
+
+table.data-table tbody tr { transition: background 0.1s ease; }
+
+table.data-table tbody tr:hover { background: var(--row-hover); }
 
 .rank-cell {
-  color: var(--gold);
-  font-weight: 700;
+  color: var(--gold) !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums;
 }
 
-.win { color: var(--green); font-weight: 600; }
-.loss { color: var(--red); font-weight: 600; }
+.win {
+  color: var(--green) !important;
+  font-weight: 600 !important;
+}
+
+.loss {
+  color: var(--red) !important;
+  font-weight: 600 !important;
+}
+
+/* ------------------------------------------------------------ filters */
 
 .filters {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .filters button {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  color: var(--text-dim);
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-size: 0.85rem;
+  color: var(--text-mid);
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-size: 0.845rem;
+  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.14s ease;
 }
 
 .filters button:hover {
   color: var(--text);
-  border-color: var(--accent);
+  border-color: #cfd5df;
 }
 
 .filters button.active {
   background: var(--accent);
-  color: #06121f;
+  color: #fff;
   border-color: var(--accent);
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(47, 109, 246, 0.28);
 }
+
+/* -------------------------------------------------------- misc states */
 
 .loading {
   color: var(--text-dim);
-  padding: 32px;
+  padding: 44px;
   text-align: center;
   font-size: 0.9rem;
 }
 
 .error-box {
   margin: 16px;
-  padding: 16px;
-  border-radius: 8px;
-  background: #2a1414;
-  border: 1px solid #4a2323;
-  color: #f0b4b4;
-  font-size: 0.88rem;
-  line-height: 1.5;
+  padding: 15px 17px;
+  border-radius: 10px;
+  background: var(--red-soft);
+  border: 1px solid #f5c6c2;
+  color: #8f2018;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
 footer {
   text-align: center;
   color: var(--text-dim);
   font-size: 0.8rem;
-  padding: 24px;
+  padding: 8px 24px 40px;
 }
+
+/* ------------------------------------------------------------- mobile */
+
+@media (max-width: 640px) {
+  nav { padding: 12px 16px; }
+  nav .brand { font-size: 0.9rem; width: 100%; }
+  main { padding: 24px 14px 60px; }
+  h1 { font-size: 1.45rem; }
+  table.data-table { font-size: 0.82rem; }
+  table.data-table th,
+  table.data-table td { padding: 9px 12px; }
+}
+
+/* ------------------------------------------------------- data pages */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+  margin-bottom: 26px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 13px 15px;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat .label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.stat .value {
+  font-size: 1.4rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat .sub {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.panel-head {
+  padding: 14px 18px 0;
+}
+
+.panel-title {
+  font-size: 0.96rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  margin: 0 0 3px;
+}
+
+.panel-note {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  padding: 6px 14px 10px;
+}
+
+.chart .grid { stroke: var(--panel-border-soft); stroke-width: 1; }
+.chart .zero { stroke: #c3cad6; stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .axis { fill: var(--text-dim); font-size: 10px; font-family: system-ui, sans-serif; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 0 18px 14px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.79rem;
+  color: var(--text-mid);
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.rift { display: block; margin: 0 auto; max-width: 100%; }
+.rift-bg { fill: #eef1f5; }
+.rift-lane { stroke: #dbe0e8; stroke-width: 4.5; fill: none; stroke-linecap: round; }
+.rift-river { stroke: #d6e4f0; stroke-width: 5; fill: none; stroke-linecap: round; }
+.rift-base { fill: #cdd4de; }
+.k-blue { fill: #2f6df6; opacity: 0.72; }
+.k-red  { fill: #d9483c; opacity: 0.72; }
+.p-dot  { fill: #6b7686; opacity: 0.30; }
+
+.map-wrap { padding: 16px; }
+
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.pill-win  { background: #e6f6ef; color: var(--green); }
+.pill-loss { background: var(--red-soft); color: var(--red); }
+.pill-ban  { background: #f0f2f6; color: var(--text-mid); font-weight: 500; margin: 0 4px 4px 0; }
+
+.ban-row { padding: 2px 18px 12px; }
+.ban-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.timeline { padding: 4px 18px 16px; }
+.tl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--panel-border-soft);
+}
+.tl-row:last-child { border-bottom: none; }
+.tl-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  min-width: 44px;
+  font-size: 0.78rem;
+}
+.tl-bar { width: 3px; height: 16px; border-radius: 2px; }
+.tl-blue { background: var(--accent); }
+.tl-red  { background: var(--red); }
 
 </style>
 </head>
@@ -341,8 +551,11 @@ function buildNav(active) {
   const links = [
     ["index.html", "Standings"],
     ["player-ratings.html", "Player Ratings"],
-    ["draft-board.html", "Draft Board"],
     ["game-log.html", "Game Log"],
+    ["profiles.html", "Profiles"],
+    ["maps.html", "Maps"],
+    ["fantasy.html", "Fantasy"],
+    ["gameflow.html", "Game Flow"],
   ];
   const nav = document.querySelector("[data-nav]");
   if (!nav) return;
@@ -353,6 +566,142 @@ function buildNav(active) {
     linkWrap.appendChild(el("a", { href, class: href === active ? "active" : "", text: label }));
   }
   nav.appendChild(linkWrap);
+}
+
+
+/* ---------------------------------------------------------------------
+   Match data (data.json) - generated from the raw Riot JSON exports.
+   Unlike the Sheet-driven pages, this is a static file in the repo.
+   --------------------------------------------------------------------- */
+
+let _matchData = null;
+
+async function loadData() {
+  if (_matchData) return _matchData;
+  const res = await fetch("data.json", { cache: "no-cache" });
+  if (!res.ok) throw new Error("Couldn't load data.json (" + res.status + ")");
+  _matchData = await res.json();
+  return _matchData;
+}
+
+function flattenGames(data) {
+  const out = [];
+  for (const g of data.games) {
+    for (const p of g.players) out.push(Object.assign({ game: g.n, dur: g.dur, date: g.date }, p));
+  }
+  return out;
+}
+
+function fmt(n, d) {
+  if (n === null || n === undefined || isNaN(n)) return "-";
+  return Number(n).toFixed(d === undefined ? 1 : d);
+}
+
+function signed(n) {
+  const v = Math.round(n);
+  return (v > 0 ? "+" : "") + v.toLocaleString();
+}
+
+function filterBar(container, options, active, onPick) {
+  const bar = el("div", { class: "filters" });
+  for (const opt of options) {
+    const b = el("button", { text: opt, class: opt === active ? "active" : "" });
+    b.addEventListener("click", () => onPick(opt));
+    bar.appendChild(b);
+  }
+  container.appendChild(bar);
+  return bar;
+}
+
+/* ---- tiny hand-rolled SVG charting (no external libraries) ---------- */
+
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function lineChart(opts) {
+  const W = opts.width || 720, H = opts.height || 260;
+  const L = 52, R = 16, T = 14, B = 28;
+  const series = opts.series || [];
+  let maxLen = 0, lo = 0, hi = 0;
+  for (const s of series) {
+    maxLen = Math.max(maxLen, s.values.length);
+    for (const v of s.values) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  }
+  if (opts.zeroFloor) lo = Math.min(lo, 0);
+  if (hi === lo) hi = lo + 1;
+  const pad = (hi - lo) * 0.08;
+  lo -= pad; hi += pad;
+  const x = i => L + (i / Math.max(maxLen - 1, 1)) * (W - L - R);
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img" });
+
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = lo + (hi - lo) * (i / ticks);
+    svg.appendChild(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), class: "grid" }));
+    const t = svgEl("text", { x: L - 8, y: y(v) + 4, class: "axis", "text-anchor": "end" });
+    t.textContent = Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v);
+    svg.appendChild(t);
+  }
+  if (lo < 0 && hi > 0) {
+    svg.appendChild(svgEl("line", { x1: L, x2: W - R, y1: y(0), y2: y(0), class: "zero" }));
+  }
+  for (let m = 0; m < maxLen; m += 5) {
+    const t = svgEl("text", { x: x(m), y: H - 8, class: "axis", "text-anchor": "middle" });
+    t.textContent = m;
+    svg.appendChild(t);
+  }
+  for (const s of series) {
+    const d = s.values.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(" ");
+    svg.appendChild(svgEl("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round", opacity: s.opacity || 1 }));
+  }
+  return svg;
+}
+
+function legend(items) {
+  const wrap = el("div", { class: "legend" });
+  for (const it of items) {
+    const row = el("span", { class: "legend-item" });
+    const dot = el("span", { class: "legend-dot" });
+    dot.style.background = it.color;
+    row.appendChild(dot);
+    row.appendChild(el("span", { text: it.label }));
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+/* ---- Summoner's Rift schematic + point plotting -------------------- */
+
+const MAP_MAX = 14870;
+
+function riftMap(size) {
+  const S = size || 460;
+  const svg = svgEl("svg", { viewBox: "0 0 100 100", class: "rift", role: "img" });
+  svg.setAttribute("width", S); svg.setAttribute("height", S);
+  svg.appendChild(svgEl("rect", { x: 0, y: 0, width: 100, height: 100, rx: 3, class: "rift-bg" }));
+  svg.appendChild(svgEl("path", { d: "M8 4 L8 92 L96 92", class: "rift-lane" }));
+  svg.appendChild(svgEl("path", { d: "M8 8 L92 92", class: "rift-lane" }));
+  svg.appendChild(svgEl("path", { d: "M4 8 L92 8 L92 96", class: "rift-lane" }));
+  svg.appendChild(svgEl("path", { d: "M2 62 L38 98 M62 2 L98 38", class: "rift-river" }));
+  svg.appendChild(svgEl("circle", { cx: 7, cy: 93, r: 3.4, class: "rift-base" }));
+  svg.appendChild(svgEl("circle", { cx: 93, cy: 7, r: 3.4, class: "rift-base" }));
+  return svg;
+}
+
+function plotPoint(svg, gx, gy, cls, r) {
+  const px = (gx / MAP_MAX) * 100;
+  const py = 100 - (gy / MAP_MAX) * 100;
+  const c = svgEl("circle", { cx: px.toFixed(2), cy: py.toFixed(2), r: r || 1.5, class: cls });
+  svg.appendChild(c);
+  return c;
 }
 
 </script>

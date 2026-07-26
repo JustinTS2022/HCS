@@ -1,9 +1,9 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Standings — Hebron Championship Series</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy — Hebron Championship Series</title>
 <style>
 :root {
   --bg: #f6f7f9;
@@ -415,15 +415,12 @@ footer {
 <body>
 <nav data-nav></nav>
 <main>
-  <h1>Standings</h1>
-  <div class="subtitle">Overall Player Value, blended across roles and weighted by games played. Updates automatically whenever the Sheet does.</div>
-  <div class="panel">
-    <div class="table-scroll" id="standings-table">
-      <div class="loading">Loading live standings…</div>
-    </div>
-  </div>
+  <h1>Fantasy scoring</h1>
+  <div class="subtitle">LCS Fantasy scoring applied to league games, with thresholds recalibrated to this league. The official cutoffs are set for pro play — CS/min ≥10 at 15 minutes and a 30% damage share never triggered once here, so those bonuses were rescaled to roughly the 75th percentile of actual performance.</div>
+  <div id="picker"></div>
+  <div id="body"><div class="loading">Loading match data…</div></div>
 </main>
-<footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
+<footer>Kills +1.5 · Assists +1 · Deaths −1 · CS +0.01 · plus performance and role bonuses.</footer>
 <script>
 // Hebron Championship Series - shared site logic
 // Reads live data straight from the Google Sheet via the gviz CSV endpoint.
@@ -704,35 +701,119 @@ function plotPoint(svg, gx, gy, cls, r) {
 
 </script>
 <script>
-  buildNav("index.html");
+buildNav("fantasy.html");
 
-  (async function () {
-    const container = document.getElementById("standings-table");
-    try {
-      const rows = await fetchSheet("Standings");
-      // Row 0 is the (mangled) header. Data rows follow until the first
-      // row whose "Total Games" column isn't a plain integer -- that's
-      // where the sheet's second section ("TOP PLAYER-ROLE PERFORMANCES")
-      // begins, which isn't shaped for this table.
-      const dataRows = [];
-      for (let i = 1; i < rows.length; i++) {
-        const r = rows[i];
-        if (!/^\d+$/.test((r[1] || "").trim())) break;
-        dataRows.push(r);
+(async function () {
+  const body = document.getElementById("body");
+  const picker = document.getElementById("picker");
+  try {
+    const data = await loadData();
+    const rows = flattenGames(data);
+    const views = ["Leaderboard", "By role", "Every game"];
+    let current = "Leaderboard";
+
+    function draw() {
+      picker.innerHTML = "";
+      filterBar(picker, views, current, v => { current = v; draw(); });
+      body.innerHTML = "";
+
+      if (current === "Leaderboard") {
+        const by = {};
+        for (const r of rows) (by[r.p] || (by[r.p] = [])).push(r);
+        const table = Object.entries(by).map(([p, rs]) => {
+          const tot = rs.reduce((s, r) => s + r.fantasy, 0);
+          const best = rs.reduce((a, b) => (b.fantasy > a.fantasy ? b : a));
+          const roleCount = {};
+          rs.forEach(r => roleCount[r.role] = (roleCount[r.role] || 0) + 1);
+          const mainRole = Object.entries(roleCount).sort((x, y) => y[1] - x[1])[0][0];
+          return { p, n: rs.length, avg: tot / rs.length, tot, best, mainRole };
+        }).sort((a, b) => b.avg - a.avg);
+
+        const top = table[0];
+        const stats = el("div", { class: "stat-grid" });
+        function stat(label, value, sub) {
+          const s = el("div", { class: "stat" });
+          s.appendChild(el("div", { class: "label", text: label }));
+          s.appendChild(el("div", { class: "value", text: value }));
+          if (sub) s.appendChild(el("div", { class: "sub", text: sub }));
+          stats.appendChild(s);
+        }
+        stat("Leader", top.p, fmt(top.avg, 1) + " avg");
+        const bestGame = rows.reduce((a, b) => (b.fantasy > a.fantasy ? b : a));
+        stat("Best game", fmt(bestGame.fantasy, 1), bestGame.p + " — " + bestGame.champ + " (G" + bestGame.game + ")");
+        stat("League avg", fmt(rows.reduce((s, r) => s + r.fantasy, 0) / rows.length, 1), "per player-game");
+        stat("Games scored", String(data.games.length), rows.length + " player-games");
+        body.appendChild(stats);
+
+        const panel = el("div", { class: "panel" });
+        const wrap = el("div", { class: "table-scroll" });
+        renderTable(wrap, ["Rank", "Player", "Main role", "Games", "Avg", "Total", "Best game"],
+          table.map((t, i) => [
+            String(i + 1), t.p, t.mainRole, String(t.n), fmt(t.avg, 1), fmt(t.tot, 1),
+            fmt(t.best.fantasy, 1) + " (" + t.best.champ + ")",
+          ]),
+          { cellClass: (c, i) => (i === 0 ? "rank-cell" : "") });
+        panel.appendChild(wrap);
+        body.appendChild(panel);
+
+      } else if (current === "By role") {
+        const by = {};
+        for (const r of rows) (by[r.role] || (by[r.role] = [])).push(r);
+        const panel = el("div", { class: "panel" });
+        const head = el("div", { class: "panel-head" });
+        head.appendChild(el("div", { class: "panel-title", text: "Scoring balance across roles" }));
+        head.appendChild(el("div", { class: "panel-note",
+          text: "LCS Fantasy uses role bonuses to keep roles scoring evenly. Even after recalibration Mid still lags — it has the fewest bonuses that fire at this level, while Support earns vision score every game." }));
+        panel.appendChild(head);
+        const wrap = el("div", { class: "table-scroll" });
+        renderTable(wrap, ["Role", "Player-games", "Avg score", "Best", "Worst"],
+          Object.entries(by).map(([role, rs]) => {
+            const avg = rs.reduce((s, r) => s + r.fantasy, 0) / rs.length;
+            return [role, String(rs.length), fmt(avg, 1),
+              fmt(Math.max(...rs.map(r => r.fantasy)), 1),
+              fmt(Math.min(...rs.map(r => r.fantasy)), 1)];
+          }).sort((a, b) => parseFloat(b[2]) - parseFloat(a[2])));
+        panel.appendChild(wrap);
+        body.appendChild(panel);
+
+        const bp = el("div", { class: "panel" });
+        const bh = el("div", { class: "panel-head" });
+        bh.appendChild(el("div", { class: "panel-title", text: "Per-player role splits" }));
+        bh.appendChild(el("div", { class: "panel-note", text: "Where a player scores best is not always where they've played most." }));
+        bp.appendChild(bh);
+        const bw = el("div", { class: "table-scroll" });
+        const combos = {};
+        for (const r of rows) {
+          const key = r.p + "|" + r.role;
+          (combos[key] || (combos[key] = [])).push(r.fantasy);
+        }
+        renderTable(bw, ["Player", "Role", "Games", "Avg score"],
+          Object.entries(combos).map(([key, vals]) => {
+            const [p, role] = key.split("|");
+            return [p, role, String(vals.length), fmt(vals.reduce((s, v) => s + v, 0) / vals.length, 1)];
+          }).sort((a, b) => parseFloat(b[3]) - parseFloat(a[3])));
+        bp.appendChild(bw);
+        body.appendChild(bp);
+
+      } else {
+        const panel = el("div", { class: "panel" });
+        const wrap = el("div", { class: "table-scroll" });
+        renderTable(wrap, ["Game", "Player", "Role", "Champion", "Result", "K/D/A", "CS", "KP%", "Score"],
+          rows.slice().sort((a, b) => b.fantasy - a.fantasy).map(r => [
+            "G" + r.game, r.p, r.role, r.champ, r.win ? "Win" : "Loss",
+            r.k + "/" + r.d + "/" + r.a, String(r.cs), fmt(r.kp, 1) + "%", fmt(r.fantasy, 1),
+          ]),
+          { cellClass: (c, i) => (i === 4 ? (c === "Win" ? "win" : "loss") : "") });
+        panel.appendChild(wrap);
+        body.appendChild(panel);
       }
-
-      const headers = ["Rank", "Player", "Games", "Win %", "Overall Value", "Weighted Value", "Best Role", "Best Role Value"];
-      const displayRows = dataRows.map((r, i) => [
-        String(i + 1), r[0], r[1], r[2], r[3], r[4], r[5], r[6],
-      ]);
-
-      renderTable(container, headers, displayRows, {
-        cellClass: (cell, i) => (i === 0 ? "rank-cell" : ""),
-      });
-    } catch (err) {
-      showError(container, err);
     }
-  })();
+
+    draw();
+  } catch (err) {
+    showError(body, err);
+  }
+})();
 </script>
 </body>
 </html>
