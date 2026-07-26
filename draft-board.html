@@ -4,7 +4,203 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Draft Board — Hebron Championship Series</title>
-<link rel="stylesheet" href="assets/style.css" />
+<style>
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-border: #262b36;
+  --text: #e7e9ee;
+  --text-dim: #9aa1af;
+  --accent: #4fa8ff;
+  --gold: #e8b84a;
+  --green: #3ecf8e;
+  --red: #ef6b6b;
+  --row-alt: #1b1f28;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+nav .brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+
+nav .nav-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+nav .nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+nav .nav-links a:hover {
+  background: #1f2430;
+  color: var(--text);
+}
+
+nav .nav-links a.active {
+  background: var(--accent);
+  color: #06121f;
+  font-weight: 600;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 8px 0 4px;
+}
+
+.subtitle {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+table.data-table th {
+  text-align: left;
+  padding: 10px 14px;
+  background: #1c2029;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--panel-border);
+  position: sticky;
+  top: 0;
+}
+
+table.data-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+table.data-table tbody tr:nth-child(even) {
+  background: var(--row-alt);
+}
+
+table.data-table tbody tr:hover {
+  background: #232838;
+}
+
+.rank-cell {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.win { color: var(--green); font-weight: 600; }
+.loss { color: var(--red); font-weight: 600; }
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filters button {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filters button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.filters button.active {
+  background: var(--accent);
+  color: #06121f;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.loading {
+  color: var(--text-dim);
+  padding: 32px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.error-box {
+  margin: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #2a1414;
+  border: 1px solid #4a2323;
+  color: #f0b4b4;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+footer {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  padding: 24px;
+}
+
+</style>
 </head>
 <body>
 <nav data-nav></nav>
@@ -18,7 +214,146 @@
   </div>
 </main>
 <footer>Data pulled live from the Hebron Championship Series Google Sheet.</footer>
-<script src="assets/app.js"></script>
+<script>
+// Hebron Championship Series - shared site logic
+// Reads live data straight from the Google Sheet via the gviz CSV endpoint.
+// No API key, no backend - the Sheet just needs to be shared as
+// "Anyone with the link can view".
+
+const SHEET_ID = "1W1zuo1JuSsp9CL56Pn7g6zNS_dhOnJWBU2ZVBW6_t9U";
+
+function gvizUrl(sheetName) {
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
+
+// Minimal quote-aware CSV parser. Google's CSV export always quotes fields,
+// so this only needs to handle "" as an escaped quote inside a quoted field.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else {
+        field += c;
+      }
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((c) => c !== ""));
+}
+
+async function fetchSheet(sheetName) {
+  const res = await fetch(gvizUrl(sheetName), { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Could not load "${sheetName}" (HTTP ${res.status}). Is the Sheet still set to "Anyone with the link can view"?`);
+  }
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+// The first cell of row 1 in several tabs has the sheet's title text glued
+// onto the real first header (Google merges a title cell and the export
+// jams the merged text + the next real header into one string). This pulls
+// the last "word cluster" off that mess by matching against a known header.
+function stripTitlePrefix(cellText, knownHeader) {
+  const idx = cellText.lastIndexOf(knownHeader);
+  if (idx === -1) return cellText.trim();
+  return cellText.slice(idx).trim();
+}
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else node.setAttribute(k, v);
+  }
+  for (const child of [].concat(children)) {
+    if (child == null) continue;
+    node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+
+function renderTable(container, headers, rows, opts = {}) {
+  container.innerHTML = "";
+  const table = el("table", { class: "data-table" });
+  const thead = el("thead", {}, el("tr", {}, headers.map((h) => el("th", { text: h }))));
+  const tbody = el("tbody", {}, rows.map((r) => {
+    const tr = el("tr", {});
+    r.forEach((cell, i) => {
+      const td = el("td", { text: cell });
+      if (opts.cellClass) {
+        const cls = opts.cellClass(cell, i, r);
+        if (cls) td.className = cls;
+      }
+      tr.appendChild(td);
+    });
+    return tr;
+  }));
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+function showError(container, err) {
+  container.innerHTML = "";
+  container.appendChild(
+    el("div", { class: "error-box" }, [
+      el("strong", { text: "Couldn't load live data." }),
+      el("div", { text: err.message || String(err) }),
+    ])
+  );
+  console.error(err);
+}
+
+function buildNav(active) {
+  const links = [
+    ["index.html", "Standings"],
+    ["player-ratings.html", "Player Ratings"],
+    ["draft-board.html", "Draft Board"],
+    ["game-log.html", "Game Log"],
+  ];
+  const nav = document.querySelector("[data-nav]");
+  if (!nav) return;
+  nav.innerHTML = "";
+  nav.appendChild(el("div", { class: "brand", text: "Hebron Championship Series" }));
+  const linkWrap = el("div", { class: "nav-links" });
+  for (const [href, label] of links) {
+    linkWrap.appendChild(el("a", { href, class: href === active ? "active" : "", text: label }));
+  }
+  nav.appendChild(linkWrap);
+}
+
+</script>
 <script>
   buildNav("draft-board.html");
 
